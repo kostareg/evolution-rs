@@ -33,7 +33,7 @@ impl Blob {
             y: rng.random_range(-1. ..= 1.),
             genomes: std::array::from_fn(|_| Genome::random_new()),
             internal_state: InternalState {
-                I0: rng.random_range(-1. ..= 1.),
+                I0: rng.random_range(0. ..= 1.),
                 I1: rng.random_range(-1. ..= 1.),
                 I2: rng.random_range(-1. ..= 1.),
                 I3: rng.random_range(-1. ..= 1.),
@@ -49,7 +49,7 @@ impl Blob {
             y: rng.random_range(-1. ..= 1.),
             genomes,
             internal_state: InternalState {
-                I0: rng.random_range(-1. ..= 1.),
+                I0: rng.random_range(0. ..= 1.),
                 I1: rng.random_range(-1. ..= 1.),
                 I2: rng.random_range(-1. ..= 1.),
                 I3: rng.random_range(-1. ..= 1.),

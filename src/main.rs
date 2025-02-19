@@ -30,7 +30,7 @@ fn window_conf() -> Conf {
         window_title: "Simulator".to_owned(),
         window_width: 512 + 4,
         window_height: 512 + 4,
-        fullscreen: false,
+        fullscreen: true,
         ..Default::default()
     }
 }

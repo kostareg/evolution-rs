@@ -19,11 +19,13 @@ impl Simulator {
 
     pub async fn run(&mut self) {
         let mut rng = rand::rng();
+        let mut survived = 200;
         for i in 1..=100 {
-            self.run_generation(i).await;
+            self.run_generation(i, survived).await;
         
             // delete everyone on the left.
             let blobs: Vec<_> = self.blobs.clone().into_iter().filter(|blob| blob.x.is_sign_positive()).collect();
+            survived = blobs.len();
             self.blobs = vec![];
 
             // use the remaining blobs to repopulate.
@@ -35,30 +37,36 @@ impl Simulator {
                 //println!("{:#?}", selected);
 
                 let blob = Blob::random_pos(selected.genomes);
-
-                let config = bincode::DefaultOptions::new()
-                    .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
-                    .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
-                println!("{}", hex::encode(config.serialize(&selected.genomes).unwrap()));
-
                 self.blobs.push(blob);
             }
         }
 
         loop {
-            self.draw();
+            let sample = self.blobs[0];
+            let config = bincode::DefaultOptions::new()
+                .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
+                .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
+            let sample_code = format!("{}", hex::encode(config.serialize(&sample.genomes).unwrap()));
+
+            self.draw(100, survived, sample, sample_code).await;
             next_frame().await;
         }
     }
 
-    pub async fn run_generation(&mut self, i: i16) {
+    pub async fn run_generation(&mut self, i: i16, survived: usize) {
         // just do 300 steps for now.
         for _ in 1..300 {
             self.step();
 
             //if i > 90 {
             if true {
-                self.draw();
+                let sample = self.blobs[0];
+                let config = bincode::DefaultOptions::new()
+                    .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
+                    .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
+                let sample_code = format!("{}", hex::encode(config.serialize(&sample.genomes).unwrap()));
+
+                self.draw(i, survived, sample, sample_code).await;
                 next_frame().await;
             }
         }
@@ -133,19 +141,49 @@ impl Simulator {
         }
     }
 
-    fn draw(&self) {
-        clear_background(BLACK);
-        let scale = 4.0; // Scale factor to zoom in (1x1 becomes 4x4 pixels)
+    async fn draw(&self, i: i16, survived: usize, sample: Blob, sample_code: String) {
+        let mut fill = || {
+            clear_background(BLACK);
+            draw_text_ex(format!("Generation {}. Hold p to pause, press q to quit.", i).as_str(), 612., 60., TextParams::default());
+            draw_text_ex(format!("{}% survival rate, killed {}.", 100. * (survived as f32) / 200., 200 - survived).as_str(), 612., 80., TextParams::default());
+            draw_text_ex(format!("Analyzing blob {}:", sample_code).as_str(), 612., 120., TextParams::default());
+            draw_text_ex(format!("(x, y) = ({}, {})", sample.x, sample.y).as_str(), 632., 140., TextParams::default());
+            draw_multiline_text_ex(format!("{:#?}", sample.genomes).as_str(), 632., 160., Some(1.), TextParams::default());
+            draw_multiline_text_ex(format!("{:#?}", sample.internal_state).as_str(), 888., 160., Some(1.), TextParams::default());
 
-        for blob in &self.blobs {
-            let (screen_x, screen_y) = self.to_screen_coords(blob.x, blob.y);
-            draw_rectangle(screen_x, screen_y, scale, scale, WHITE);
+            let scale = 4.0; // Scale factor to zoom in (1x1 becomes 4x4 pixels)
+
+            let mut f = true;
+            for blob in &self.blobs {
+                // TODO: color for biodiversity?
+                let color = if f {
+                    RED
+                } else {
+                    WHITE
+                };
+                let (screen_x, screen_y) = self.to_screen_coords(blob.x, blob.y);
+                draw_rectangle(screen_x, screen_y, scale, scale, color);
+                f = false;
+            }
+        };
+
+        if is_key_down(KeyCode::P) {
+            while !is_key_released(KeyCode::P) {
+                fill();
+                next_frame().await;
+            }
         }
+
+        if is_key_pressed(KeyCode::Q) {
+            std::process::exit(0);
+        }
+
+        fill();
     }
 
     fn to_screen_coords(&self, x: f32, y: f32) -> (f32, f32) {
-        let screen_x = ((x + 1.0) * 64.0) * 4.0; // Scale coordinates
-        let screen_y = ((y + 1.0) * 64.0) * 4.0;
+        let screen_x = 50. + ((x + 1.0) * 64.0) * 4.0; // Scale coordinates
+        let screen_y = 50. + ((y + 1.0) * 64.0) * 4.0;
         (screen_x, screen_y)
     }
 }
