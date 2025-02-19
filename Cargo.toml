@@ -9,3 +9,6 @@ edition = "2021"
 macroquad = "0.4.13"
 rand = "0.9.0"
 gl = "0.14" # linking issues
+serde = { version = "1.0.217", features = ["derive"] }
+bincode = "1.3.3"
+hex = "0.4.3"

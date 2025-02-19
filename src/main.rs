@@ -15,7 +15,7 @@ async fn main() {
 
     // Now let's make 100 of them.
     let mut blobs = vec![];
-    for _ in 0..100 {
+    for _ in 0..200 {
         blobs.push(blob::Blob::random_new());
     }
 

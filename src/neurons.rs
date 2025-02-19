@@ -1,4 +1,5 @@
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 
 // For now, just hard-coding the internal neurons. Also, max out multiplication
 // by 10.
@@ -6,7 +7,7 @@ use rand::Rng;
 /// A source is either an internal neuron or a sensory neuron. They produce
 /// floating-point values from -1 to 1 that represent various sensors or
 /// internal calculations.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Source {
     // Internal:
     I0,
@@ -30,7 +31,7 @@ pub enum Source {
 ///
 /// For example: a value of -8.98 for My means that there is an 89.8% chance of
 /// moving down in the next step.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Sink {
     // Internal:
     I0,

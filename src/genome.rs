@@ -1,10 +1,11 @@
 use crate::neurons::*;
 
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 
 pub type Genomes = [Genome; 8]; // for a base: 8 genomes.
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Genome {
     pub source: Source,
     pub sink: Sink,
