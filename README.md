@@ -15,3 +15,7 @@ The neural network of the final sample in the video above (from generation 10) i
 ![neural network sample 10](https://github.com/user-attachments/assets/3c45e74c-63b5-47e8-b0f9-ae5b0c3e3c48)
 
 Figure 1: neural network sample 10.
+
+## Next steps
+
+I would love to implement rare mutations in order to increase survivorship in changing environments. In terms of simulation logic, I would like to implement collisions, killing neighbours, and pheremones. For data analysis, I want to create tools such as a streamlined neural network directed graph generator.
