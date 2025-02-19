@@ -17,10 +17,10 @@ pub struct Blob {
 
 #[derive(Debug, Copy, Clone)]
 pub struct InternalState {
-    pub I0: f32,
-    pub I1: f32,
-    pub I2: f32,
-    pub I3: f32,
+    pub i0: f32,
+    pub i1: f32,
+    pub i2: f32,
+    pub i3: f32,
 }
 
 impl Blob {
@@ -29,31 +29,36 @@ impl Blob {
         let mut rng = rand::rng();
 
         Self {
-            x: rng.random_range(-1. ..= 1.),
-            y: rng.random_range(-1. ..= 1.),
+            x: rng.random_range(-1. ..=1.),
+            y: rng.random_range(-1. ..=1.),
             genomes: std::array::from_fn(|_| Genome::random_new()),
-            internal_state: InternalState {
-                I0: rng.random_range(0. ..= 1.),
-                I1: rng.random_range(-1. ..= 1.),
-                I2: rng.random_range(-1. ..= 1.),
-                I3: rng.random_range(-1. ..= 1.),
-            }
+            internal_state: InternalState::random_new(),
         }
     }
 
+    /// Create a blob in a random position with an inherited genome. Used in
+    /// all non-zero generations.
     pub fn random_pos(genomes: Genomes) -> Self {
         let mut rng = rand::rng();
 
         Self {
-            x: rng.random_range(-1. ..= 1.),
-            y: rng.random_range(-1. ..= 1.),
+            x: rng.random_range(-1. ..=1.),
+            y: rng.random_range(-1. ..=1.),
             genomes,
-            internal_state: InternalState {
-                I0: rng.random_range(0. ..= 1.),
-                I1: rng.random_range(-1. ..= 1.),
-                I2: rng.random_range(-1. ..= 1.),
-                I3: rng.random_range(-1. ..= 1.),
-            }
+            internal_state: InternalState::random_new(),
+        }
+    }
+}
+
+impl InternalState {
+    pub fn random_new() -> Self {
+        let mut rng = rand::rng();
+
+        Self {
+            i0: rng.random_range(0. ..=1.),
+            i1: rng.random_range(-1. ..=1.),
+            i2: rng.random_range(-1. ..=1.),
+            i3: rng.random_range(-1. ..=1.),
         }
     }
 }

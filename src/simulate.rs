@@ -1,70 +1,89 @@
 use crate::blob::*;
 use crate::neurons::*;
 
-use macroquad::prelude::*;
 use ::rand::{self, Rng};
 use bincode::Options;
+use macroquad::prelude::*;
+use rayon::prelude::*;
+
+/// The simulation's population. Each generation will repopulate up to this
+/// cap.
+const POPULATION: usize = 200;
+
+/// Steps in a single generation dictate the length of the individual
+/// generation.
+const STEPS_PER_GEN: usize = 300;
+
+/// Number of generations to run. The simulation will freeze when it
+/// reaches this cap.
+const GENS: usize = 100;
 
 /// The simulation environment.
 pub struct Simulator {
-    blobs: Vec<Blob>,
+    blobs: [Blob; POPULATION],
 }
 
-// TODO: how to multithread this?
-
 impl Simulator {
-    pub fn new(blobs: Vec<Blob>) -> Self {
-        Self { blobs }
+    /// Create a new simulation environment, filled with randomly generated
+    /// blobs.
+    pub fn random_new() -> Self {
+        Self {
+            blobs: std::array::from_fn(|_| Blob::random_new()),
+        }
     }
 
     pub async fn run(&mut self) {
         let mut rng = rand::rng();
-        let mut survived = 200;
-        for i in 1..=100 {
+        let mut survived = POPULATION;
+        for i in 0..GENS {
             self.run_generation(i, survived).await;
-        
+
             // delete everyone on the left.
-            let blobs: Vec<_> = self.blobs.clone().into_iter().filter(|blob| blob.x.is_sign_positive()).collect();
-            survived = blobs.len();
-            self.blobs = vec![];
+            // TODO: rename to kill method, make modular.
+            let surviving_blobs: Vec<_> = self
+                .blobs
+                .clone()
+                .into_iter()
+                .filter(|blob| blob.x.is_sign_positive())
+                .collect();
+            survived = surviving_blobs.len();
 
             // use the remaining blobs to repopulate.
-            for _ in 0..200 {
-                // pick a random blob's genomes from the survivors and copy it.
-                let r = rng.random_range(0..blobs.len());
-                // println!("{}", r);
-                let selected = blobs[r];
-                //println!("{:#?}", selected);
-
-                let blob = Blob::random_pos(selected.genomes);
-                self.blobs.push(blob);
-            }
+            self.blobs = std::array::from_fn(|_| {
+                // pick a random survivor blob's genomes and copy it.
+                let selected_blob = surviving_blobs[rng.random_range(0..surviving_blobs.len())];
+                Blob::random_pos(selected_blob.genomes)
+            });
         }
 
         loop {
             let sample = self.blobs[0];
             let config = bincode::DefaultOptions::new()
-                .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
-                .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
-            let sample_code = format!("{}", hex::encode(config.serialize(&sample.genomes).unwrap()));
+                .with_varint_encoding()
+                .allow_trailing_bytes();
+            let sample_code = format!(
+                "{}",
+                hex::encode(config.serialize(&sample.genomes).unwrap())
+            );
 
-            self.draw(100, survived, sample, sample_code).await;
+            self.draw(GENS, survived, sample, sample_code).await;
             next_frame().await;
         }
     }
 
-    pub async fn run_generation(&mut self, i: i16, survived: usize) {
-        // just do 300 steps for now.
-        for _ in 1..300 {
+    pub async fn run_generation(&mut self, i: usize, survived: usize) {
+        for _ in 0..STEPS_PER_GEN {
             self.step();
 
-            //if i > 90 {
             if true {
                 let sample = self.blobs[0];
                 let config = bincode::DefaultOptions::new()
-                    .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
-                    .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
-                let sample_code = format!("{}", hex::encode(config.serialize(&sample.genomes).unwrap()));
+                    .with_varint_encoding()
+                    .allow_trailing_bytes();
+                let sample_code = format!(
+                    "{}",
+                    hex::encode(config.serialize(&sample.genomes).unwrap())
+                );
 
                 self.draw(i, survived, sample, sample_code).await;
                 next_frame().await;
@@ -75,32 +94,30 @@ impl Simulator {
     /// Simulates one step in the environment.
     fn step(&mut self) {
         // Loop thru each blob and handle its neural network.
-        for blob in self.blobs.iter_mut() {
+        self.blobs.par_iter_mut().for_each(|blob| {
             // TODO: might be smart to move this into genome + unprivatize.
-            // something wrong here??? !!
 
-            // Px = blob.x
-            // Py = blob.y
-            let random = rand::rng().random_range(-1. ..= 1.);
-            // I0.. = blob.internal_state.I0..
+            let random = rand::rng().random_range(-1. ..=1.);
 
+            // Define all of the blob's accumulators for this step.
             let mut mx = 0.;
             let mut my = 0.;
-            let mut I0 = 0.;
-            let mut I1 = 0.;
-            let mut I2 = 0.;
-            let mut I3 = 0.;
+            let mut i0 = 0.;
+            let mut i1 = 0.;
+            let mut i2 = 0.;
+            let mut i3 = 0.;
 
+            // For each genome, read the source and add its value to the
+            // accumulator.
             for genome in blob.genomes {
                 let source = match genome.source {
                     Source::Px => blob.x,
                     Source::Py => blob.y,
                     Source::Random => random,
-                    Source::I0 => blob.internal_state.I0,
-                    Source::I1 => blob.internal_state.I1,
-                    Source::I2 => blob.internal_state.I2,
-                    Source::I3 => blob.internal_state.I3,
-                    _ => 0., // panic
+                    Source::I0 => blob.internal_state.i0,
+                    Source::I1 => blob.internal_state.i1,
+                    Source::I2 => blob.internal_state.i2,
+                    Source::I3 => blob.internal_state.i3,
                 };
 
                 let input_value = source * (genome.weight as f32);
@@ -109,58 +126,111 @@ impl Simulator {
                     // assuming 128x128 board.
                     Sink::Mx => mx += input_value,
                     Sink::My => my += input_value,
-                    Sink::I0 => I0 += input_value,
-                    Sink::I1 => I1 += input_value,
-                    Sink::I2 => I2 += input_value,
-                    Sink::I3 => I3 += input_value,
+                    Sink::I0 => i0 += input_value,
+                    Sink::I1 => i1 += input_value,
+                    Sink::I2 => i2 += input_value,
+                    Sink::I3 => i3 += input_value,
                 }
             }
 
-            blob.x += Self::translate(blob.x, mx.tanh()) * (1./64.);
-            blob.y += Self::translate(blob.y, my.tanh()) * (1./64.);
-            blob.internal_state.I0 += I0.tanh().abs();
-            blob.internal_state.I1 += I1.tanh();
-            blob.internal_state.I2 += I2.tanh();
-            blob.internal_state.I3 += I3.tanh();
-        }
+            blob.x += Self::translate(blob.x, mx.tanh()) * (1. / 64.);
+            blob.y += Self::translate(blob.y, my.tanh()) * (1. / 64.);
+            blob.internal_state.i0 += i0.tanh().abs();
+            blob.internal_state.i1 += i1.tanh();
+            blob.internal_state.i2 += i2.tanh();
+            blob.internal_state.i3 += i3.tanh();
+        })
     }
 
     /// Returns either 0 or +/-1 based on probability as provided. Always
     /// 0 if passing borders.
     fn translate(position: f32, probability: f32) -> f32 {
         // If we want to go off the screen, return 0.
-        if (position + (1./64.) * probability.signum()).abs() >= 1. {
+        if (position + (1. / 64.) * probability.signum()).abs() >= 1. {
             return 0.;
         }
 
-        let mut rng = rand::rng();
-        if rng.random_range(0. .. 1.) < probability.abs() {
+        if rand::rng().random_range(0. ..1.) < probability.abs() {
             return 1. * probability.signum(); // direction
         } else {
             return 0.;
         }
     }
 
-    async fn draw(&self, i: i16, survived: usize, sample: Blob, sample_code: String) {
-        let mut fill = || {
+    async fn draw(&self, i: usize, survived: usize, sample: Blob, sample_code: String) {
+        let fill = || {
             clear_background(BLACK);
-            draw_text_ex(format!("Generation {}. Hold p to pause, press q to quit.", i).as_str(), 612., 60., TextParams::default());
-            draw_text_ex(format!("{}% survival rate, killed {}.", 100. * (survived as f32) / 200., 200 - survived).as_str(), 612., 80., TextParams::default());
-            draw_text_ex(format!("Analyzing blob {}:", sample_code).as_str(), 612., 120., TextParams::default());
-            draw_text_ex(format!("(x, y) = ({}, {})", sample.x, sample.y).as_str(), 632., 140., TextParams::default());
-            draw_multiline_text_ex(format!("{:#?}", sample.genomes).as_str(), 632., 160., Some(1.), TextParams::default());
-            draw_multiline_text_ex(format!("{:#?}", sample.internal_state).as_str(), 888., 160., Some(1.), TextParams::default());
+            draw_text_ex(
+                format!("Generation {}. Hold p to pause, press q to quit.", i).as_str(),
+                612.,
+                60.,
+                TextParams::default(),
+            );
+            draw_text_ex(
+                format!(
+                    "{}% survival rate, killed {}.",
+                    100. * (survived as f32) / (POPULATION as f32),
+                    POPULATION - survived
+                )
+                .as_str(),
+                612.,
+                80.,
+                TextParams::default(),
+            );
+
+            draw_text_ex(
+                format!("Analyzing blob {}:", sample_code).as_str(),
+                612.,
+                120.,
+                TextParams::default(),
+            );
+            draw_text_ex(
+                format!("(x, y) = ({}, {})", sample.x, sample.y).as_str(),
+                632.,
+                140.,
+                TextParams::default(),
+            );
+            draw_multiline_text_ex(
+                format!("{:#?}", sample.genomes).as_str(),
+                632.,
+                160.,
+                Some(1.),
+                TextParams::default(),
+            );
+            draw_multiline_text_ex(
+                format!("{:#?}", sample.internal_state).as_str(),
+                888.,
+                160.,
+                Some(1.),
+                TextParams::default(),
+            );
+
+            draw_text_ex("Constants:", 1200., 60., TextParams::default());
+            draw_text_ex(
+                format!("Population cap of {}.", POPULATION).as_str(),
+                1220.,
+                80.,
+                TextParams::default(),
+            );
+            draw_text_ex(
+                format!("Running {} steps/generation.", STEPS_PER_GEN).as_str(),
+                1220.,
+                100.,
+                TextParams::default(),
+            );
+            draw_text_ex(
+                format!("Running up to {} generations.", GENS).as_str(),
+                1220.,
+                120.,
+                TextParams::default(),
+            );
 
             let scale = 4.0; // Scale factor to zoom in (1x1 becomes 4x4 pixels)
 
             let mut f = true;
             for blob in &self.blobs {
                 // TODO: color for biodiversity?
-                let color = if f {
-                    RED
-                } else {
-                    WHITE
-                };
+                let color = if f { RED } else { WHITE };
                 let (screen_x, screen_y) = self.to_screen_coords(blob.x, blob.y);
                 draw_rectangle(screen_x, screen_y, scale, scale, color);
                 f = false;

@@ -1,5 +1,5 @@
 use rand::Rng;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // For now, just hard-coding the internal neurons. Also, max out multiplication
 // by 10.
