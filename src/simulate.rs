@@ -3,6 +3,7 @@ use crate::neurons::*;
 
 use macroquad::prelude::*;
 use ::rand::{self, Rng};
+use bincode::Options;
 
 /// The simulation environment.
 pub struct Simulator {
@@ -34,7 +35,12 @@ impl Simulator {
                 //println!("{:#?}", selected);
 
                 let blob = Blob::random_pos(selected.genomes);
-                // println!("{}", hex::encode(bincode::serialize(&selected.genomes).unwrap()));
+
+                let config = bincode::DefaultOptions::new()
+                    .with_varint_encoding()  // Uses fixed-size integers (removes extra space)
+                    .allow_trailing_bytes(); // Prevents errors when decoding extra bytes
+                println!("{}", hex::encode(config.serialize(&selected.genomes).unwrap()));
+
                 self.blobs.push(blob);
             }
         }
