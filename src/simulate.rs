@@ -224,13 +224,15 @@ impl Simulator {
                 120.,
                 TextParams::default(),
             );
+            // elimination rect
+            draw_rectangle(50., 50., 256., 512. + 4., RED);
 
             let scale = 4.0; // Scale factor to zoom in (1x1 becomes 4x4 pixels)
 
             let mut f = true;
             for blob in &self.blobs {
                 // TODO: color for biodiversity?
-                let color = if f { RED } else { WHITE };
+                let color = if f { BLUE } else { WHITE };
                 let (screen_x, screen_y) = self.to_screen_coords(blob.x, blob.y);
                 draw_rectangle(screen_x, screen_y, scale, scale, color);
                 f = false;
